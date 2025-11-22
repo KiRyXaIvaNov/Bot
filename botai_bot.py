@@ -40,7 +40,6 @@ learn_mode_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_k
 learn_mode_keyboard.row("Блиц", "Подробный")
 learn_mode_keyboard.row("Обратно")
 
-
 # для создания пар
 create_pairs_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
 create_pairs_keyboard.row("Обратно")
@@ -61,11 +60,11 @@ def button_message(message):
     Устанавливаем главное меню и состояние
     """
     chat_id = message.chat.id
-    bot.send_message(message.chat.id,'Выберите что вам надо',reply_markup=menu_keyboard)
+    bot.send_message(message.chat.id,'Выберите что вам надо', reply_markup=menu_keyboard)
     user_states[chat_id] = 'main_menu'
 
 # основной обработчик
-@bot.message_handler(content_types= ['text'])
+@bot.message_handler(content_types=['text'])
 def is_button_press(message):
     """
     Обрабатывает нажатия
