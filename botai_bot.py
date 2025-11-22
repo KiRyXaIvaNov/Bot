@@ -29,7 +29,7 @@ menu_keyboard.row("Изучать")
 instruction_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
 instruction_keyboard.row("Обратно")
 
-#keyboard for ИЗучать
+#keyboard for Изучать
 learn_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
 learn_keyboard.row("Выберите набор пар")
 learn_keyboard.row("Блиц", "Подробный")
