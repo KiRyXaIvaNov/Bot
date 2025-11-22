@@ -59,9 +59,9 @@ def button_message(message):
     По команде старт выдаются кнопки
     Устанавливаем главное меню и состояние
     """
-    chat_id = message.chat.id
+    chat_id = message.chat.id  # id пользователя для уникальности переменных
     bot.send_message(message.chat.id,'Выберите что вам надо', reply_markup=menu_keyboard)
-    user_states[chat_id] = 'main_menu'
+    user_states[chat_id] = 'main_menu' # переводим статус в "главное меню"
 
 # основной обработчик
 @bot.message_handler(content_types=['text'])
@@ -73,23 +73,22 @@ def is_button_press(message):
     chat_id = message.chat.id
     text = message.text
     current_state = user_states.get(chat_id, 'main_menu')
-    if current_state == "waiting_for_pairs":
-
+    if current_state == "waiting_for_pairs":  # обрабатываем состояние "ввод пар"
         if text == "Обратно":
             bot.send_message(chat_id, "Возвращаемся", reply_markup=menu_keyboard)
             user_states[chat_id] = 'main_menu'
-            if current_preset[chat_id]:
-                presetsfile = open('presets/' + str(chat_id) + '.txt', 'a')
-                presetsfile.write(f'{preset_name[chat_id]}$${current_preset[chat_id]}\n\n')
+            if current_preset[chat_id]:      # если есть пресет
+                presetsfile = open('presets/' + str(chat_id) + '.txt', 'a') # открываем создавшийся под пресет файл
+                presetsfile.write(f'{preset_name[chat_id]}$${current_preset[chat_id]}\n\n') # записываем пары
                 presetsfile.close()
 
-        if not preset_name[chat_id] and text != "Обратно":
+        if not preset_name[chat_id] and text != "Обратно":   # если нет пресета, создаем пары
             preset_name[chat_id] = text
             bot.send_message(chat_id,
                              f"Теперь можно вводить пары",
                              reply_markup=create_pairs_keyboard)
 
-        elif "==" in text and ";;" in text:
+        elif "==" in text and ";;" in text:     # парсим пары
             pairs_message = [[x.strip() for x in pair.split('==')] for pair in text.strip(';;').split(';;')]
             if all(pairs_message):
                 current_preset[chat_id] += ';;'.join(['=='.join(pair) for pair in pairs_message]) + ';;'
@@ -115,7 +114,7 @@ def is_button_press(message):
             bot.send_message(chat_id,
                              'Пожалуйста, введите термин и определение в формате "Термин==Определение;;Термин==Определение". Обе части должны быть заполнены.',
                              reply_markup=create_pairs_keyboard)
-
+    # выбираем пресет
     elif current_state == 'preset_choice':
         if text == "Обратно":
             bot.send_message(chat_id, "Возвращаемся", reply_markup=menu_keyboard)
@@ -132,7 +131,7 @@ def is_button_press(message):
             bot.send_message(chat_id, "Введённое название не найдено в списке", reply_markup=instruction_keyboard)
             choice[chat_id] = ''
 
-
+    #обработка создания пар, перевод состояния в "ввод пар"
     elif current_state == "main_menu":
         if text == "Создать набор пар":
             bot.send_message(chat_id,
@@ -145,11 +144,11 @@ def is_button_press(message):
 
         elif text == "Инструкция":
             instruction_text = """
-                        Это инструкцию к чат-боту "Ботай-бот".
-                        Кнопка "Создать пары": вы вводите свои пары "термин-определение", которые вы хотите изучить.
-                        Кнопка "Изучать" подразделяется на два режима: "блиц" и "подробный".
-                        Блиц - пользователь по определению должен написать термин по выданному определению.
-                        Подробный - пользователь по термину должен дать подробное определение.
+Это инструкцию к чат-боту "Ботай-бот".
+Кнопка "Создать пары": вы вводите свои пары "термин-определение", которые вы хотите изучить.
+Кнопка "Изучать" подразделяется на два режима: "блиц" и "подробный".
+Блиц - пользователь по определению должен написать термин по выданному определению.
+Подробный - пользователь по термину должен дать подробное определение.
                     """
             bot.send_message(chat_id, instruction_text, reply_markup=instruction_keyboard)
             # Состояние остается 'main_menu', если клавиатура инструкции не меняет состояние
@@ -160,13 +159,12 @@ def is_button_press(message):
 
             with open('presets/' + str(chat_id) + '.txt', 'r') as file:
                 name_preset_pairs = [x.split('$$') for x in list(file) if x != '\n']
-                preset_names[chat_id] = [x[0] for x in name_preset_pairs]
-                presets[chat_id] = [x[1].strip() for x in name_preset_pairs]
+                preset_names[chat_id] = [x[0] for x in name_preset_pairs] # тут обработанные пресет-неймы!
+                presets[chat_id] = [x[1].strip() for x in name_preset_pairs] # тут обработанные пресеты!
 
             bot.send_message(chat_id, f"{'\n'.join(preset_names[chat_id])}")
 
             choice[chat_id] = ''
-            # Состояние остается 'main_menu', если клавиатура изучения не меняет состояние
 
         elif text == "Обратно":  # Обработка "Обратно" из главного меню (если бы она там была)
             # Эта ветка, скорее всего, не выполнится, если "Обратно" есть только в подменю.
@@ -179,16 +177,13 @@ def is_button_press(message):
                              reply_markup=menu_keyboard)
 
     elif current_state == 'learning_mode_selection':
-        # сюда вываливается список со строками-пресетами
-        # preset_list = list(open('presets/' + str(chat_id) + '.txt', 'r'))
+
 
         if text == "Обратно":
             bot.send_message(chat_id, "Возвращаемся в главное меню:", reply_markup=menu_keyboard)
             user_states[chat_id] = 'main_menu'
             return
         '''сюда дописать выбор режимов и проверку по пресету, проверки черех объявленные в начале кода функциях'''
-
-
 
 if __name__ == '__main__':
     print("Бот запущен...")
