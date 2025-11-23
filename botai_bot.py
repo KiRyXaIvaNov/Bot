@@ -1,7 +1,7 @@
 import telebot as tb #@myyyyyy_bot_8K51T_bot
 from telebot import types
 import random
-token = "7590824294:AAEd8iddy-yDg06s0sQgspfMBpxjdE_gE04"
+token = "YOUR_TOKEN_HERE"
 bot = tb.TeleBot(token)
 termins_dict = {}
 user_states = {} # для отслеживания статуса пользователя
@@ -199,3 +199,4 @@ def is_button_press(message):
 if __name__ == '__main__':
     print("Бот запущен...")
     bot.infinity_polling()
+
