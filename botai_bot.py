@@ -94,7 +94,7 @@ action_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keybo
 action_keyboard.row("Пропустить", "Завершить")  # Кнопки для действий в режиме обучения
 
 
-# ИИ
+# ИИ для проверки
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
 def check_answer(user_answer: str, real_answer: str) -> int:
