@@ -107,71 +107,12 @@ def check_answer(user_answer: str, real_answer: str) -> int:
     score = util.cos_sim(user_answer_tensor,real_answer_tensor)
     return ceil(score.item()*100)
 
-def blitz_check(preset,chat_id,bot,user_answer=None):
-    if chat_id not in learning_sessions:
-        pairs = [pair.split("==", 1) for pair in preset.split(";;") if pair.strip() and "==" in pair]
-        random.shuffle(pairs)
-        terms, definitions =zip(*pairs)
-        learning_sessions[chat_id] = {
-            "mode": "Блиц",
-            "terms": terms,
-            "definitions": definitions,
-            "index":0, "correct": 0, "total":len(terms)
-        }
-    session = learning_sessions[chat_id]
-    if user_answer is None:
-        if session["index"] >= session["total"]:
-            correct, total = session['correct'], session['total']
-            percentage = (correct / total) * 100
-            result = f"Блиц завершен!\n {correct}/{total} ({percentage:.1f}%)"
-            bot.send_message(chat_id, result, reply_markup=menu_keyboard)
-            learning_sessions.pop(chat_id)
-            user_states[chat_id] = 'main_menu'
-        else:
-            question = f"({session['index'] + 1}/{session['total']})\n Определение: {session['definitions'][session['index']]}\n Напишите термин:"
-            bot.send_message(chat_id, question, reply_markup=action_keyboard, parse_mode='Markdown')
-    else:
-        correct_term = session['terms'][session['index']]
-        if user_answer.lower().strip() == correct_term.lower().strip():
-            session['correct'] += 1
-            bot.send_message(chat_id, "Правильно!", parse_mode='Markdown')
-        else:
-            bot.send_message(chat_id, f"Неправильно!\nПравильно: {correct_term}", parse_mode='Markdown')
-        session['index'] += 1
-        blitz_check(None, chat_id, bot)
+def blitz_check():
+    return True
 
-def podrobno_check(preset,chat_id,bot,user_answer=None):
-    if chat_id not in learning_sessions:
-        pairs = [pair.split("==", 1) for pair in preset.split(";;") if pair.strip() and "==" in pair]
-        random.shuffle(pairs)
-        terms, definitions = zip(*pairs)
-        learning_sessions[chat_id] = {
-            "mode": "Подробный",
-            "terms": terms,
-            "definitions": definitions,
-            "index": 0, "correct": 0, "total": len(terms)
-        }
-    session = learning_sessions[chat_id]
-    if user_answer is None:
-        if session["index"] >= session["total"]:
-            correct, total = session['correct'], session['total']
-            percentage = (correct / total) * 100
-            result = f"Подробный режим завершен!\n {correct}/{total} ({percentage:.1f}%)"
-            bot.send_message(chat_id, result, reply_markup=menu_keyboard)
-            learning_sessions.pop(chat_id)
-            user_states[chat_id] = 'main_menu'
-        else:
-            question = f"({session['index'] + 1}/{session['total']})\n Термин: {session['terms'][session['index']]}\n Напишите определение:"
-            bot.send_message(chat_id, question, reply_markup=action_keyboard, parse_mode='Markdown')
-    else:
-        correct_definition = session['definitions'][session['index']]
-        if user_answer.lower().strip() == correct_definition.lower().strip():
-            session['correct'] += 1
-            bot.send_message(chat_id, "Правильно!", parse_mode='Markdown')
-        else:
-            bot.send_message(chat_id, f"Неправильно!\nПравильно: {correct_definition}", parse_mode='Markdown')
-        session['index'] += 1
-        podrobno_check(None, chat_id, bot)
+
+def podrobno_check():
+    return True
 
 
 @bot.message_handler(commands=['start'])
@@ -183,6 +124,7 @@ def button_message(message):
     chat_id = message.chat.id  # id пользователя для уникальности переменных
     bot.send_message(message.chat.id, 'Выберите что вам надо', reply_markup=menu_keyboard)
     user_states[chat_id] = 'main_menu'  # переводим статус в "главное меню"
+
 
 # основной обработчик
 @bot.message_handler(content_types=['text'])
@@ -338,43 +280,9 @@ def is_button_press(message):
             user_states[chat_id] = 'main_menu'
             return
         '''сюда дописать выбор режимов и проверку по пресету, проверки черех объявленные в начале кода функциях'''
-        if text == "Блиц":
-            selected_preset_name = choice[chat_id]
-            choice_index = preset_names[chat_id].index(selected_preset_name)
-            preset_data = presets[chat_id][choice_index]
-            blitz_check(preset_data, chat_id, bot)
-            user_states[chat_id] = 'learning_in_progress'
-        elif text == "Подробный":
-            selected_preset_name = choice[chat_id]
-            choice_index = preset_names[chat_id].index(selected_preset_name)
-            preset_data = presets[chat_id][choice_index]
-            podrobno_check(preset_data,chat_id,bot)
-            user_states[chat_id] = 'learning_in_progress'
-
-    elif current_state == 'learning_in_progress':
-        if text == "Завершить":
-            if chat_id in learning_sessions:
-                session = learning_sessions.pop(chat_id)
-                bot.send_message(chat_id, "Тест прерван", reply_markup=menu_keyboard)
-            user_states[chat_id] = 'main_menu'
-        elif text == "Пропустить":
-            if chat_id in learning_sessions:
-                session = learning_sessions[chat_id]
-                session['index'] += 1
-                if session['mode'] == 'Блиц':
-                    blitz_check(None, chat_id, bot)
-                else:
-                    podrobno_check(None,chat_id,bot)
-        else:
-            if chat_id in learning_sessions:
-                if learning_sessions[chat_id]['mode'] == 'Блиц':
-                    blitz_check(None, chat_id, bot, user_answer=text)
-                else:
-                    podrobno_check(None, chat_id, bot, user_answer=text)
-
-
 
 
 if __name__ == '__main__':
     print("Бот запущен...")
+
     bot.infinity_polling()
