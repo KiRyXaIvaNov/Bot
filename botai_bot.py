@@ -1,21 +1,20 @@
 import telebot as tb  # @myyyyyy_bot_8K51T_bot
 from telebot import types
 import random
-import os
 import sqlite3
 from sentence_transformers import SentenceTransformer, util
+import nltk
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+import pymorphy3
 
+# YOUR_TOKEN_HERE
 token = "YOUR_TOKEN_HERE"
 
 bot = tb.TeleBot(token)
 
 user_states = {}  # для отслеживания статуса пользователя
 learning_sessions = {}
-
-
-# # Этот код с бд не нужен
-# if not os.path.exists('presets'):
-#     os.mkdir('presets')
 
 # Инициализация базы данных и создание таблицы, если ее еще не существует
 def init_db():
@@ -101,18 +100,116 @@ def check_answer(user_answer: str, real_answer: str) -> int:
     :param real_answer: ответ, который должен быть
     :return: схожесть ответа в процентах
     """
+
+    def keywords(text):
+        morph = pymorphy3.MorphAnalyzer()
+        try:
+            stop_words = set(stopwords.words('russian'))
+        except LookupError:
+            nltk.download('stopwords')
+            stop_words = set(stopwords.words('russian'))
+
+        stop_words.add('однако')
+        try:
+            text_tokenized = word_tokenize(text, language='russian')
+        except LookupError:
+            nltk.download('punkt_tab')
+            text_tokenized = word_tokenize(text, language='russian')
+
+        tokens = [word for word in text_tokenized if word.isalpha()]
+
+        i, t = 0, len(tokens) - 1
+        while i < t:
+            if tokens[i].lower() == 'не':
+                tokens[i] += ' ' + tokens[i + 1]
+                del tokens[i + 1]
+                t -= 1
+            i += 1
+
+        filtered = []
+        for token in tokens:
+            wordnf = morph.parse(token)[0].normal_form
+            if wordnf.replace('не ', '') not in stop_words and len(wordnf) > 2:
+                filtered.append(wordnf)
+
+        return filtered
+
+    real_keywords, user_keywords = set(keywords(real_answer)), set(keywords(user_answer))
+    keyword_score = (len(user_keywords & real_keywords) / len(keywords(real_answer)))
+
     from math import ceil
     user_answer_tensor = model.encode(user_answer, convert_to_tensor=True)
     real_answer_tensor = model.encode(real_answer, convert_to_tensor=True)
-    score = util.cos_sim(user_answer_tensor,real_answer_tensor)
-    return ceil(score.item()*100)
+    semantic_score = util.cos_sim(user_answer_tensor,real_answer_tensor).item()
 
-def blitz_check():
-    return True
+    return ceil((semantic_score + 2 * keyword_score) / 3 * 100)
 
+def blitz_check(preset,chat_id,bot,user_answer=None):
+    if chat_id not in learning_sessions:
+        pairs = [pair.split("==", 1) for pair in preset.split(";;") if pair.strip() and "==" in pair]
+        random.shuffle(pairs)
+        terms, definitions =zip(*pairs)
+        learning_sessions[chat_id] = {
+            "mode": "Блиц",
+            "terms": terms,
+            "definitions": definitions,
+            "index":0, "correct": 0, "total":len(terms), "skips": 0
+        }
+    session = learning_sessions[chat_id]
+    if user_answer is None:
+        if session["index"] >= session["total"]:
+            correct, total = session['correct'], session['total']
+            percentage = (correct / (total - session['skips'])) * 100
+            result = f"Блиц завершен!\n {correct}/{(total - session['skips'])} ({percentage:.1f}%)"
+            bot.send_message(chat_id, result, reply_markup=menu_keyboard)
+            learning_sessions.pop(chat_id)
+            user_states[chat_id] = 'main_menu'
+        else:
+            question = f"({session['index'] + 1}/{session['total']})\n Определение: {session['definitions'][session['index']]}\n Напишите термин:"
+            bot.send_message(chat_id, question, reply_markup=action_keyboard, parse_mode='Markdown')
+    else:
+        correct_term = session['terms'][session['index']]
+        if user_answer.lower().strip() == correct_term.lower().strip():
+            session['correct'] += 1
+            bot.send_message(chat_id, "Правильно!", parse_mode='Markdown')
+        else:
+            bot.send_message(chat_id, f"Неправильно!\nПравильно: {correct_term}", parse_mode='Markdown')
+        session['index'] += 1
+        blitz_check(None, chat_id, bot)
 
-def podrobno_check():
-    return True
+def podrobno_check(preset,chat_id,bot,user_answer=None):
+    if chat_id not in learning_sessions:
+        pairs = [pair.split("==", 1) for pair in preset.split(";;") if pair.strip() and "==" in pair]
+        random.shuffle(pairs)
+        terms, definitions = zip(*pairs)
+        learning_sessions[chat_id] = {
+            "mode": "Подробный",
+            "terms": terms,
+            "definitions": definitions,
+            "index": 0, "correct": 0, "total": len(terms), "skips": 0
+        }
+    session = learning_sessions[chat_id]
+    if user_answer is None:
+        if session["index"] >= session["total"]:
+            correct, total = session['correct'], session['total']
+            percentage = (correct / ((total - session['skips']) * 100)) * 100
+            result = f"Подробный режим завершен!\n(Средняя точность {percentage:.1f}%)"
+            bot.send_message(chat_id, result, reply_markup=menu_keyboard)
+            learning_sessions.pop(chat_id)
+            user_states[chat_id] = 'main_menu'
+        else:
+            question = f"({session['index'] + 1}/{session['total']})\n Термин: {session['terms'][session['index']]}\n Напишите определение:"
+            bot.send_message(chat_id, question, reply_markup=action_keyboard, parse_mode='Markdown')
+    else:
+        correct_definition = session['definitions'][session['index']]
+        similarity_score = check_answer(user_answer.strip(), correct_definition.strip())
+        session['correct'] += similarity_score
+        bot.send_message(chat_id, f"Точность вашего ответа ~{similarity_score}%", parse_mode='Markdown')
+
+        if similarity_score < 90:
+            bot.send_message(chat_id, f"Образец: {correct_definition}", parse_mode='Markdown')
+        session['index'] += 1
+        podrobno_check(None, chat_id, bot)
 
 
 @bot.message_handler(commands=['start'])
@@ -124,7 +221,6 @@ def button_message(message):
     chat_id = message.chat.id  # id пользователя для уникальности переменных
     bot.send_message(message.chat.id, 'Выберите что вам надо', reply_markup=menu_keyboard)
     user_states[chat_id] = 'main_menu'  # переводим статус в "главное меню"
-
 
 # основной обработчик
 @bot.message_handler(content_types=['text'])
@@ -145,12 +241,6 @@ def is_button_press(message):
                 chat_id]:  # Если юзер ввел данные, то сохраняем
                 save_preset_to_db(chat_id, preset_name[chat_id], current_preset[chat_id])
                 bot.send_message(chat_id, f"Набор '{preset_name[chat_id]}' сохранен в базу данных!")
-
-            # #Этот код не нужен с бд
-            # if current_preset[chat_id]:      # если есть пресет
-            #     presetsfile = open('presets/' + str(chat_id) + '.txt', 'a') # открываем создавшийся под пресет файл
-            #     presetsfile.write(f'{preset_name[chat_id]}$${current_preset[chat_id]}\n\n') # записываем пары
-            #     presetsfile.close()
 
         if not preset_name[chat_id] and text != "Обратно":  # если нет пресета, создаем пары
             preset_name[chat_id] = text
@@ -176,7 +266,7 @@ def is_button_press(message):
                     current_preset[chat_id] = ''
                 current_preset[chat_id] += '=='.join(pairs_message) + ';;'
                 bot.send_message(chat_id,
-                                 f"Пара добавлена. Продолжайте вводить пары или нажмите 'Назад'.",
+                                 f"Пара(-ы) добавлена. Продолжайте вводить пары или нажмите 'Назад'.",
                                  reply_markup=create_pairs_keyboard)
             else:
                 bot.send_message(chat_id,
@@ -251,15 +341,7 @@ def is_button_press(message):
 
             # Показываем список доступных пресетов
             presets_list = "\n".join([f"• {name}" for name in preset_names[chat_id]])
-            bot.send_message(chat_id, f"Ваши наборы:\n{presets_list}\n\nВведите название набора:")
-
-            # # Код больше не нужен с бд
-            # with open('presets/' + str(chat_id) + '.txt', 'r') as file:
-            #     name_preset_pairs = [x.split('$$') for x in list(file) if x != '\n']
-            #     preset_names[chat_id] = [x[0] for x in name_preset_pairs] # тут обработанные пресет-неймы!
-            #     presets[chat_id] = [x[1].strip() for x in name_preset_pairs] # тут обработанные пресеты!
-
-            # bot.send_message(chat_id, f"{'\n'.join(preset_names[chat_id])}")
+            bot.send_message(chat_id, f"Ваши наборы:\n{presets_list}\n\nВведите название набора (с учетом регистра):")
 
             choice[chat_id] = ''
 
@@ -279,7 +361,43 @@ def is_button_press(message):
             bot.send_message(chat_id, "Возвращаемся в главное меню:", reply_markup=menu_keyboard)
             user_states[chat_id] = 'main_menu'
             return
-        '''сюда дописать выбор режимов и проверку по пресету, проверки черех объявленные в начале кода функциях'''
+
+        if text == "Блиц":
+            selected_preset_name = choice[chat_id]
+            choice_index = preset_names[chat_id].index(selected_preset_name)
+            preset_data = presets[chat_id][choice_index]
+            blitz_check(preset_data, chat_id, bot)
+            user_states[chat_id] = 'learning_in_progress'
+        elif text == "Подробный":
+            selected_preset_name = choice[chat_id]
+            choice_index = preset_names[chat_id].index(selected_preset_name)
+            preset_data = presets[chat_id][choice_index]
+            podrobno_check(preset_data,chat_id,bot)
+            user_states[chat_id] = 'learning_in_progress'
+
+    elif current_state == 'learning_in_progress':
+        if text == "Завершить":
+            if chat_id in learning_sessions:
+                session = learning_sessions.pop(chat_id)
+                bot.send_message(chat_id, "Тест прерван", reply_markup=menu_keyboard)
+            user_states[chat_id] = 'main_menu'
+        elif text == "Пропустить":
+            if chat_id in learning_sessions:
+                session = learning_sessions[chat_id]
+                session['index'] += 1
+                session['skips'] += 1
+                if session['mode'] == 'Блиц':
+                    blitz_check(None, chat_id, bot)
+                else:
+                    podrobno_check(None,chat_id, bot)
+        else:
+            if chat_id in learning_sessions:
+                if learning_sessions[chat_id]['mode'] == 'Блиц':
+                    blitz_check(None, chat_id, bot, user_answer=text)
+                else:
+                    podrobno_check(None, chat_id, bot, user_answer=text)
+
+
 
 
 if __name__ == '__main__':
