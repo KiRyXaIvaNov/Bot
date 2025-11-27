@@ -1,25 +1,24 @@
 import telebot as tb  # @myyyyyy_bot_8K51T_bot
 from telebot import types
 import random
-import os
 import sqlite3
 from sentence_transformers import SentenceTransformer, util
+import nltk
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+import pymorphy3
 
-token = "7590824294:AAEd8iddy-yDg06s0sQgspfMBpxjdE_gE04"
+# YOUR_TOKEN_HERE
+token = "YOUR_TOKEN_HERE"
 
 bot = tb.TeleBot(token)
 
 user_states = {}  # для отслеживания статуса пользователя
 learning_sessions = {}
 
-
-# # Этот код с бд не нужен
-# if not os.path.exists('presets'):
-#     os.mkdir('presets')
-
 # Инициализация базы данных и создание таблицы, если ее еще не существует
 def init_db():
-    conn = sqlite3.connect('presets.db', check_same_thread=False)
+    conn = sqlite3.connect('../presets.db', check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS presets (
@@ -34,7 +33,7 @@ def init_db():
 
 # Функция для сохранения пресета в бд
 def save_preset_to_db(user_id, preset_name, preset_data):
-    conn = sqlite3.connect('presets.db', check_same_thread=False)
+    conn = sqlite3.connect('../presets.db', check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO presets (user_id, preset_name, preset_data)
@@ -46,7 +45,7 @@ def save_preset_to_db(user_id, preset_name, preset_data):
 
 # Функция для получения пресетов пользователя из бд
 def get_user_presets_from_db(user_id):
-    conn = sqlite3.connect('presets.db', check_same_thread=False)
+    conn = sqlite3.connect('../presets.db', check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('''
         SELECT preset_name, preset_data FROM presets 
@@ -70,7 +69,7 @@ chosen_preset = {}
 menu_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
 menu_keyboard.row("Создать набор пар", "Инструкция")
 menu_keyboard.row("Изучать")
-#
+
 # keyboard for Инструкция
 instruction_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
 instruction_keyboard.row("Обратно")
@@ -101,11 +100,49 @@ def check_answer(user_answer: str, real_answer: str) -> int:
     :param real_answer: ответ, который должен быть
     :return: схожесть ответа в процентах
     """
+
+    def keywords(text):
+        morph = pymorphy3.MorphAnalyzer()
+        try:
+            stop_words = set(stopwords.words('russian'))
+        except LookupError:
+            nltk.download('stopwords')
+            stop_words = set(stopwords.words('russian'))
+
+        stop_words.add('однако')
+        try:
+            text_tokenized = word_tokenize(text, language='russian')
+        except LookupError:
+            nltk.download('punkt_tab')
+            text_tokenized = word_tokenize(text, language='russian')
+
+        tokens = [word for word in text_tokenized if word.isalpha()]
+
+        i, t = 0, len(tokens) - 1
+        while i < t:
+            if tokens[i].lower() == 'не':
+                tokens[i] += ' ' + tokens[i + 1]
+                del tokens[i + 1]
+                t -= 1
+            i += 1
+
+        filtered = []
+        for token in tokens:
+            wordnf = morph.parse(token)[0].normal_form
+            if wordnf.replace('не ', '') not in stop_words and len(wordnf) > 2:
+                filtered.append(wordnf)
+
+        return filtered
+
+    real_keywords, user_keywords = set(keywords(real_answer)), set(keywords(user_answer))
+    keyword_score = (len(user_keywords & real_keywords) / len(keywords(real_answer)))
+
     from math import ceil
     user_answer_tensor = model.encode(user_answer, convert_to_tensor=True)
     real_answer_tensor = model.encode(real_answer, convert_to_tensor=True)
-    score = util.cos_sim(user_answer_tensor,real_answer_tensor)
-    return ceil(score.item()*100)
+    semantic_score = util.cos_sim(user_answer_tensor,real_answer_tensor).item()
+
+    return ceil((semantic_score + 2 * keyword_score) / 3 * 100)
 
 def blitz_check(preset,chat_id,bot,user_answer=None):
     if chat_id not in learning_sessions:
@@ -149,14 +186,14 @@ def podrobno_check(preset,chat_id,bot,user_answer=None):
             "mode": "Подробный",
             "terms": terms,
             "definitions": definitions,
-            "index": 0, "correct": 0, "total": len(terms)
+            "index": 0, "correct": 0, "total": len(terms), "skips": 0
         }
     session = learning_sessions[chat_id]
     if user_answer is None:
         if session["index"] >= session["total"]:
             correct, total = session['correct'], session['total']
-            percentage = (correct / total) * 100
-            result = f"Подробный режим завершен!\n {correct}/{total} ({percentage:.1f}%)"
+            percentage = (correct / ((total - session['skips']) * 100)) * 100
+            result = f"Подробный режим завершен!\n(Средняя точность {percentage:.1f}%)"
             bot.send_message(chat_id, result, reply_markup=menu_keyboard)
             learning_sessions.pop(chat_id)
             user_states[chat_id] = 'main_menu'
@@ -165,11 +202,12 @@ def podrobno_check(preset,chat_id,bot,user_answer=None):
             bot.send_message(chat_id, question, reply_markup=action_keyboard, parse_mode='Markdown')
     else:
         correct_definition = session['definitions'][session['index']]
-        if user_answer.lower().strip() == correct_definition.lower().strip():
-            session['correct'] += 1
-            bot.send_message(chat_id, "Правильно!", parse_mode='Markdown')
-        else:
-            bot.send_message(chat_id, f"Неправильно!\nПравильно: {correct_definition}", parse_mode='Markdown')
+        similarity_score = check_answer(user_answer.strip(), correct_definition.strip())
+        session['correct'] += similarity_score
+        bot.send_message(chat_id, f"Точность вашего ответа ~{similarity_score}%", parse_mode='Markdown')
+
+        if similarity_score < 90:
+            bot.send_message(chat_id, f"Образец: {correct_definition}", parse_mode='Markdown')
         session['index'] += 1
         podrobno_check(None, chat_id, bot)
 
@@ -204,12 +242,6 @@ def is_button_press(message):
                 save_preset_to_db(chat_id, preset_name[chat_id], current_preset[chat_id])
                 bot.send_message(chat_id, f"Набор '{preset_name[chat_id]}' сохранен в базу данных!")
 
-            # #Этот код не нужен с бд
-            # if current_preset[chat_id]:      # если есть пресет
-            #     presetsfile = open('presets/' + str(chat_id) + '.txt', 'a') # открываем создавшийся под пресет файл
-            #     presetsfile.write(f'{preset_name[chat_id]}$${current_preset[chat_id]}\n\n') # записываем пары
-            #     presetsfile.close()
-
         if not preset_name[chat_id] and text != "Обратно":  # если нет пресета, создаем пары
             preset_name[chat_id] = text
             bot.send_message(chat_id,
@@ -234,7 +266,7 @@ def is_button_press(message):
                     current_preset[chat_id] = ''
                 current_preset[chat_id] += '=='.join(pairs_message) + ';;'
                 bot.send_message(chat_id,
-                                 f"Пара добавлена. Продолжайте вводить пары или нажмите 'Назад'.",
+                                 f"Пара(-ы) добавлена. Продолжайте вводить пары или нажмите 'Назад'.",
                                  reply_markup=create_pairs_keyboard)
             else:
                 bot.send_message(chat_id,
@@ -309,15 +341,7 @@ def is_button_press(message):
 
             # Показываем список доступных пресетов
             presets_list = "\n".join([f"• {name}" for name in preset_names[chat_id]])
-            bot.send_message(chat_id, f"Ваши наборы:\n{presets_list}\n\nВведите название набора:")
-
-            # # Код больше не нужен с бд
-            # with open('presets/' + str(chat_id) + '.txt', 'r') as file:
-            #     name_preset_pairs = [x.split('$$') for x in list(file) if x != '\n']
-            #     preset_names[chat_id] = [x[0] for x in name_preset_pairs] # тут обработанные пресет-неймы!
-            #     presets[chat_id] = [x[1].strip() for x in name_preset_pairs] # тут обработанные пресеты!
-
-            # bot.send_message(chat_id, f"{'\n'.join(preset_names[chat_id])}")
+            bot.send_message(chat_id, f"Ваши наборы:\n{presets_list}\n\nВведите название набора (с учетом регистра):")
 
             choice[chat_id] = ''
 
@@ -337,7 +361,7 @@ def is_button_press(message):
             bot.send_message(chat_id, "Возвращаемся в главное меню:", reply_markup=menu_keyboard)
             user_states[chat_id] = 'main_menu'
             return
-        '''сюда дописать выбор режимов и проверку по пресету, проверки черех объявленные в начале кода функциях'''
+
         if text == "Блиц":
             selected_preset_name = choice[chat_id]
             choice_index = preset_names[chat_id].index(selected_preset_name)
@@ -358,21 +382,21 @@ def is_button_press(message):
                 bot.send_message(chat_id, "Тест прерван", reply_markup=menu_keyboard)
             user_states[chat_id] = 'main_menu'
         elif text == "Пропустить":
+
             if chat_id in learning_sessions:
                 session = learning_sessions[chat_id]
                 session['index'] += 1
                 if session['mode'] == 'Блиц':
                     blitz_check(None, chat_id, bot)
                 else:
-                    podrobno_check(None,chat_id,bot)
+                    podrobno_check(None,chat_id, bot)
         else:
+
             if chat_id in learning_sessions:
                 if learning_sessions[chat_id]['mode'] == 'Блиц':
                     blitz_check(None, chat_id, bot, user_answer=text)
                 else:
                     podrobno_check(None, chat_id, bot, user_answer=text)
-
-
 
 
 if __name__ == '__main__':
