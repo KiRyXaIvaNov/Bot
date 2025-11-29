@@ -9,7 +9,7 @@ from nltk.corpus import stopwords
 import pymorphy3
 
 # YOUR_TOKEN_HERE
-token = "YOUR_TOKEN_HERE"
+token = "7590824294:AAEd8iddy-yDg06s0sQgspfMBpxjdE_gE04"
 
 bot = tb.TeleBot(token)
 
@@ -157,7 +157,7 @@ def blitz_check(preset,chat_id,bot,user_answer=None):
         }
     session = learning_sessions[chat_id]
     if user_answer is None:
-        if session["index"] >= session["total"]:
+        if session["index"] >= session["total"] :
             correct, total = session['correct'], session['total']
             percentage = (correct / total) * 100
             result = f"Блиц завершен!\n {correct}/{total} ({percentage:.1f}%)"
@@ -237,8 +237,7 @@ def is_button_press(message):
         if text == "Обратно":
             bot.send_message(chat_id, "Возвращаемся", reply_markup=menu_keyboard)
             user_states[chat_id] = 'main_menu'
-            if chat_id in current_preset and current_preset[chat_id] and chat_id in preset_name and preset_name[
-                chat_id]:  # Если юзер ввел данные, то сохраняем
+            if chat_id in current_preset and current_preset[chat_id] and chat_id in preset_name and preset_name[chat_id]:  # Если юзер ввел данные, то сохраняем
                 save_preset_to_db(chat_id, preset_name[chat_id], current_preset[chat_id])
                 bot.send_message(chat_id, f"Набор '{preset_name[chat_id]}' сохранен в базу данных!")
 
@@ -379,10 +378,12 @@ def is_button_press(message):
         if text == "Завершить":
             if chat_id in learning_sessions:
                 session = learning_sessions.pop(chat_id)
-                bot.send_message(chat_id, "Тест прерван", reply_markup=menu_keyboard)
+                correct, total = session['correct'], session['total']
+                bot.send_message(chat_id,
+        f"Тест прерван\n {correct}/{total} {correct/total*100:.1f}%",
+            reply_markup=menu_keyboard)
             user_states[chat_id] = 'main_menu'
         elif text == "Пропустить":
-
             if chat_id in learning_sessions:
                 session = learning_sessions[chat_id]
                 session['index'] += 1
@@ -401,5 +402,4 @@ def is_button_press(message):
 
 if __name__ == '__main__':
     print("Бот запущен...")
-
     bot.infinity_polling()
