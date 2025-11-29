@@ -9,7 +9,7 @@ from nltk.corpus import stopwords
 import pymorphy3
 
 # YOUR_TOKEN_HERE
-token = "7590824294:AAEd8iddy-yDg06s0sQgspfMBpxjdE_gE04"
+token = "YOUR_TOKEN_HERE"
 
 bot = tb.TeleBot(token)
 
@@ -403,3 +403,4 @@ def is_button_press(message):
 if __name__ == '__main__':
     print("Бот запущен...")
     bot.infinity_polling()
+
