@@ -115,8 +115,7 @@ def check_answer(user_answer: str, real_answer: str) -> int:
         except LookupError:
             nltk.download('punkt_tab')
             text_tokenized = word_tokenize(text, language='russian')
-
-        tokens = [word for word in text_tokenized if word.isalpha()]
+        tokens = [word for word in text_tokenized if word.isalpha() or word.isnumeric()]
 
         i, t = 0, len(tokens) - 1
         while i < t:
@@ -128,20 +127,26 @@ def check_answer(user_answer: str, real_answer: str) -> int:
 
         filtered = []
         for token in tokens:
-            wordnf = morph.parse(token)[0].normal_form
-            if wordnf.replace('не ', '') not in stop_words and len(wordnf) > 2:
-                filtered.append(wordnf)
+            if token.isalpha():
+                wordnf = morph.parse(token)[0].normal_form
+                if wordnf.replace('не ', '') not in stop_words:
+                    filtered.append(wordnf)
+            else:
+                filtered.append(token)
 
         return filtered
 
     real_keywords, user_keywords = set(keywords(real_answer)), set(keywords(user_answer))
-    keyword_score = (len(user_keywords & real_keywords) / len(keywords(real_answer)))
-
+    if len(keywords(real_answer)) != 0:
+        keyword_score = (len(user_keywords & real_keywords) / len(keywords(real_answer)))
+    else:
+        keyword_score = 0
     from math import ceil
     user_answer_tensor = model.encode(user_answer, convert_to_tensor=True)
     real_answer_tensor = model.encode(real_answer, convert_to_tensor=True)
     semantic_score = util.cos_sim(user_answer_tensor,real_answer_tensor).item()
-
+    print(semantic_score, keyword_score)
+    if semantic_score > 1: semantic_score = 1
     return ceil((semantic_score + 2 * keyword_score) / 3 * 100)
 
 def blitz_check(preset,chat_id,bot,user_answer=None):
@@ -252,7 +257,7 @@ def is_button_press(message):
             if all(pairs_message):
                 current_preset[chat_id] += ';;'.join(['=='.join(pair) for pair in pairs_message]) + ';;'
                 bot.send_message(chat_id,
-                                 f"Пара добавлена. Продолжайте вводить пары или нажмите 'Назад'.",
+                                 f"Пара добавлена. Продолжайте вводить пары или нажмите 'Обратно'.",
                                  reply_markup=create_pairs_keyboard)
             else:
                 bot.send_message(chat_id,
@@ -379,9 +384,14 @@ def is_button_press(message):
             if chat_id in learning_sessions:
                 session = learning_sessions.pop(chat_id)
                 correct, total = session['correct'], session['total']
-                bot.send_message(chat_id,
-        f"Тест прерван\n {correct}/{total} {correct/total*100:.1f}%",
-            reply_markup=menu_keyboard)
+                if session['mode'] == 'блиц':
+                    bot.send_message(chat_id,
+                f"Тест прерван\n {correct}/{total} {correct/total*100:.1f}%",
+                    reply_markup=menu_keyboard)
+                else:
+                    bot.send_message(chat_id,
+                    f"Тест прерван\n",
+                    reply_markup=menu_keyboard)
             user_states[chat_id] = 'main_menu'
         elif text == "Пропустить":
             if chat_id in learning_sessions:
