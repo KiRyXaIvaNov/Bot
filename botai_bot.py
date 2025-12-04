@@ -384,7 +384,7 @@ def is_button_press(message):
             if chat_id in learning_sessions:
                 session = learning_sessions.pop(chat_id)
                 correct, total = session['correct'], session['total']
-                if session['mode'] == 'блиц':
+                if session['mode'] == 'Блиц':
                     bot.send_message(chat_id,
                 f"Тест прерван\n {correct}/{total} {correct/total*100:.1f}%",
                     reply_markup=menu_keyboard)
@@ -408,9 +408,6 @@ def is_button_press(message):
                     blitz_check(None, chat_id, bot, user_answer=text)
                 else:
                     podrobno_check(None, chat_id, bot, user_answer=text)
-
-
 if __name__ == '__main__':
     print("Бот запущен...")
     bot.infinity_polling()
-
