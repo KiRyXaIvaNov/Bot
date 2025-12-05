@@ -1,4 +1,4 @@
-import telebot as tb  # @myyyyyy_bot_8K51T_bot
+import telebot as tb  # @Best_bot_ever_BotAI_bot
 from telebot import types
 import random
 import sqlite3
@@ -7,9 +7,12 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 import pymorphy3
+import psutil
 
-# YOUR_TOKEN_HERE
-token = "YOUR_TOKEN_HERE"
+
+
+# YOUR TOKEN
+token = "8246248813:AAGK82GNL1f-KE_5W-czf2IePnEXwwazQxk"
 
 bot = tb.TeleBot(token)
 
@@ -67,30 +70,30 @@ chosen_preset = {}
 
 # Создание главной клавиатуры
 menu_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-menu_keyboard.row("Создать набор пар", "Инструкция")
-menu_keyboard.row("Изучать")
+menu_keyboard.row("Создать набор пар 📝", "Инструкция 📖")
+menu_keyboard.row("Ботать 📚")
 
 # keyboard for Инструкция
 instruction_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-instruction_keyboard.row("Обратно")
+instruction_keyboard.row("Вернуться назад ↩️")
 
-# keyboard for Изучать
+# keyboard for Ботать
 learn_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
 learn_keyboard.row("Выберите набор пар")
-learn_keyboard.row("Блиц", "Подробный")
-learn_keyboard.row("Обратно")
+learn_keyboard.row("Блиц ⚡", "Подробный 🔎")
+learn_keyboard.row("Вернуться назад ↩️")
 
 # режим
 learn_mode_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-learn_mode_keyboard.row("Блиц", "Подробный")
-learn_mode_keyboard.row("Обратно")
+learn_mode_keyboard.row("Блиц ⚡", "Подробный 🔎")
+learn_mode_keyboard.row("Вернуться назад ↩️")
 
 # для создания пар
 create_pairs_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-create_pairs_keyboard.row("Обратно")
+create_pairs_keyboard.row("Вернуться назад ↩️")
 
 action_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-action_keyboard.row("Пропустить", "Завершить")  # Кнопки для действий в режиме обучения
+action_keyboard.row("Пропустить ➡️", "Завершить 🤚")  # Кнопки для действий в режиме обучения
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
@@ -155,7 +158,7 @@ def blitz_check(preset,chat_id,bot,user_answer=None):
         random.shuffle(pairs)
         terms, definitions =zip(*pairs)
         learning_sessions[chat_id] = {
-            "mode": "Блиц",
+            "mode": "Блиц ⚡",
             "terms": terms,
             "definitions": definitions,
             "index":0, "correct": 0, "total":len(terms)
@@ -170,15 +173,15 @@ def blitz_check(preset,chat_id,bot,user_answer=None):
             learning_sessions.pop(chat_id)
             user_states[chat_id] = 'main_menu'
         else:
-            question = f"({session['index'] + 1}/{session['total']})\n Определение: {session['definitions'][session['index']]}\n Напишите термин:"
+            question = f"({session['index'] + 1}/{session['total']})\n Определение 📑: {session['definitions'][session['index']]}\n Напишите термин 🖊️:"
             bot.send_message(chat_id, question, reply_markup=action_keyboard, parse_mode='Markdown')
     else:
         correct_term = session['terms'][session['index']]
         if user_answer.lower().strip() == correct_term.lower().strip():
             session['correct'] += 1
-            bot.send_message(chat_id, "Правильно!", parse_mode='Markdown')
+            bot.send_message(chat_id, "Правильно! 😺", parse_mode='Markdown')
         else:
-            bot.send_message(chat_id, f"Неправильно!\nПравильно: {correct_term}", parse_mode='Markdown')
+            bot.send_message(chat_id, f"Неправильно! 😿\nПравильно: {correct_term} 😸", parse_mode='Markdown')
         session['index'] += 1
         blitz_check(None, chat_id, bot)
 
@@ -188,7 +191,7 @@ def podrobno_check(preset,chat_id,bot,user_answer=None):
         random.shuffle(pairs)
         terms, definitions = zip(*pairs)
         learning_sessions[chat_id] = {
-            "mode": "Подробный",
+            "mode": "Подробный 🔎",
             "terms": terms,
             "definitions": definitions,
             "index": 0, "correct": 0, "total": len(terms), "skips": 0
@@ -198,34 +201,63 @@ def podrobno_check(preset,chat_id,bot,user_answer=None):
         if session["index"] >= session["total"]:
             correct, total = session['correct'], session['total']
             percentage = (correct / ((total - session['skips']) * 100)) * 100
-            result = f"Подробный режим завершен!\n(Средняя точность {percentage:.1f}%)"
+            result = f"Подробный режим завершен! ✔️\nСредняя точность ≈ {percentage:.1f}% 📐"
             bot.send_message(chat_id, result, reply_markup=menu_keyboard)
             learning_sessions.pop(chat_id)
             user_states[chat_id] = 'main_menu'
         else:
-            question = f"({session['index'] + 1}/{session['total']})\n Термин: {session['terms'][session['index']]}\n Напишите определение:"
+            question = f"({session['index'] + 1}/{session['total']})\n Термин 📑: {session['terms'][session['index']]}\n Напишите определение 🖊️:"
             bot.send_message(chat_id, question, reply_markup=action_keyboard, parse_mode='Markdown')
     else:
         correct_definition = session['definitions'][session['index']]
         similarity_score = check_answer(user_answer.strip(), correct_definition.strip())
         session['correct'] += similarity_score
-        bot.send_message(chat_id, f"Точность вашего ответа ~{similarity_score}%", parse_mode='Markdown')
+        bot.send_message(chat_id, f"Точность Вашего ответа ≈ {similarity_score}%", parse_mode='Markdown')
 
         if similarity_score < 90:
-            bot.send_message(chat_id, f"Образец: {correct_definition}", parse_mode='Markdown')
+            bot.send_message(chat_id, f"Образец 🧾: {correct_definition}", parse_mode='Markdown')
         session['index'] += 1
         podrobno_check(None, chat_id, bot)
 
 
+
 @bot.message_handler(commands=['start'])
 def button_message(message):
-    """
-    По команде старт выдаются кнопки
-    Устанавливаем главное меню и состояние
-    """
-    chat_id = message.chat.id  # id пользователя для уникальности переменных
-    bot.send_message(message.chat.id, 'Выберите что вам надо', reply_markup=menu_keyboard)
-    user_states[chat_id] = 'main_menu'  # переводим статус в "главное меню"
+    """  
+    Приветствие по команде /start
+    """  
+    chat_id = message.chat.id
+    user = message.from_user
+    user_name = user.first_name or user.username or "друг"
+    
+    bot.send_message(
+        chat_id, 
+        f'Приветствую, {user_name}! 👋 Что Вы выберите?',
+        reply_markup=menu_keyboard
+    )  
+    user_states[chat_id] = 'main_menu'
+
+
+# Добавляем команду /status для мониторинга ресурсов
+@bot.message_handler(commands=['status'])
+def send_resources_status(message):
+    """Отправляет информацию о ресурсах сервера"""
+    # Получаем использование ресурсов
+    cpu_percent = psutil.cpu_percent(interval=0.5)
+    ram_percent = psutil.virtual_memory().percent
+    disk_percent = psutil.disk_usage('/').percent
+
+    # Формируем сообщение
+    status_text = (
+        f"📊 **Статус ресурсов сервера:**\n\n"
+        f"• **CPU:** {cpu_percent}%\n"
+        f"• **RAM:** {ram_percent}%\n"
+        f"• **Диск:** {disk_percent}%\n\n"
+        f"_Информация обновлена в реальном времени_ ⏱️"
+    )
+
+    bot.send_message(message.chat.id, status_text, parse_mode='Markdown')
+
 
 # основной обработчик
 @bot.message_handler(content_types=['text'])
@@ -239,17 +271,17 @@ def is_button_press(message):
     current_state = user_states.get(chat_id, 'main_menu')
     if current_state == "waiting_for_pairs":  # обрабатываем состояние "ввод пар"
 
-        if text == "Обратно":
-            bot.send_message(chat_id, "Возвращаемся", reply_markup=menu_keyboard)
+        if text == "Вернуться назад ↩️":
+            bot.send_message(chat_id, "Возвращаемся... ⚙️", reply_markup=menu_keyboard)
             user_states[chat_id] = 'main_menu'
             if chat_id in current_preset and current_preset[chat_id] and chat_id in preset_name and preset_name[chat_id]:  # Если юзер ввел данные, то сохраняем
                 save_preset_to_db(chat_id, preset_name[chat_id], current_preset[chat_id])
-                bot.send_message(chat_id, f"Набор '{preset_name[chat_id]}' сохранен в базу данных!")
+                bot.send_message(chat_id, f"Набор '{preset_name[chat_id]}' сохранен в базу данных! 💾")
 
-        if not preset_name[chat_id] and text != "Обратно":  # если нет пресета, создаем пары
+        if not preset_name[chat_id] and text != "Вернуться назад ↩️":  # если нет пресета, создаем пары
             preset_name[chat_id] = text
             bot.send_message(chat_id,
-                             f"Теперь можно вводить пары",
+                             f"Теперь Вы можете вводить пары! 👌",
                              reply_markup=create_pairs_keyboard)
 
         elif "==" in text and ";;" in text:  # парсим пары
@@ -257,11 +289,12 @@ def is_button_press(message):
             if all(pairs_message):
                 current_preset[chat_id] += ';;'.join(['=='.join(pair) for pair in pairs_message]) + ';;'
                 bot.send_message(chat_id,
-                                 f"Пара добавлена. Продолжайте вводить пары или нажмите 'Обратно'.",
+                                 f"Пар(-ы) добавлена. 🎉 "
+                                 f"Продолжайте вводить пары ➡️ или нажмите 'Вернуться назад ↩️'.",
                                  reply_markup=create_pairs_keyboard)
             else:
                 bot.send_message(chat_id,
-                                 'Пожалуйста, введите термин и определение в формате "Термин==Определение;;Термин==Определение". Обе части должны быть заполнены.',
+                                 'Пожалуйста, введите термин и определение в формате "Термин==Определение;;Термин==Определение". ❗Обе части должны быть заполнены❗.',
                                  reply_markup=create_pairs_keyboard)
         elif "==" in text:
             pairs_message = [x.strip() for x in text.strip(';;').split('==')]
@@ -270,20 +303,21 @@ def is_button_press(message):
                     current_preset[chat_id] = ''
                 current_preset[chat_id] += '=='.join(pairs_message) + ';;'
                 bot.send_message(chat_id,
-                                 f"Пара(-ы) добавлена. Продолжайте вводить пары или нажмите 'Назад'.",
+                                 f"Пара(-ы) добавлена. 🎉 "
+                                 f"Продолжайте вводить пары ➡️ или нажмите 'Вернуться назад ↩️'.",
                                  reply_markup=create_pairs_keyboard)
             else:
                 bot.send_message(chat_id,
-                                 'Пожалуйста, введите термин и определение в формате "Термин==Определение;;Термин==Определение". Обе части должны быть заполнены.',
+                                 '❗Пожалуйста, введите термин и определение в формате "Термин==Определение;;Термин==Определение". Обе части должны быть заполнены.❗',
                                  reply_markup=create_pairs_keyboard)
-        elif text != "Обратно":
+        elif text != "Вернуться назад ↩️": #Тут хотелось бы кнопочку "Завершить ввод и вернуться назад ↩️" (прям вообще не обязательно)
             bot.send_message(chat_id,
-                             'Пожалуйста, введите термин и определение в формате "Термин==Определение;;Термин==Определение". Обе части должны быть заполнены.',
+                             '❗Пожалуйста, введите термин и определение в формате "Термин==Определение;;Термин==Определение". Обе части должны быть заполнены.❗',
                              reply_markup=create_pairs_keyboard)
     # выбираем пресет
     elif current_state == 'preset_choice':
-        if text == "Обратно":
-            bot.send_message(chat_id, "Возвращаемся", reply_markup=menu_keyboard)
+        if text == "Вернуться назад ↩️":
+            bot.send_message(chat_id, "Возвращаемся... ⚙️", reply_markup=menu_keyboard)
             user_states[chat_id] = 'main_menu'
             return
 
@@ -303,40 +337,49 @@ def is_button_press(message):
             bot.send_message(chat_id, f"Выбран набор: '{selected_preset_name}'. Выберите режим изучения:",
                              reply_markup=learn_mode_keyboard)
         else:
-            bot.send_message(chat_id, "Введённое название не найдено в списке", reply_markup=instruction_keyboard)
+            bot.send_message(chat_id, "Введённое название не найдено в списке ❌", reply_markup=instruction_keyboard)
             choice[chat_id] = ''
 
     # обработка создания пар, перевод состояния в "ввод пар"
     elif current_state == "main_menu":
-        if text == "Создать набор пар":
+        if text == "Создать набор пар 📝":
             bot.send_message(chat_id,
-                             'Отдельным сообщением введите название. После этого вводите пары терминов и определений в формате "Термин==Определение" по одному в'
-                             ' сообщении или в формате "Термин==Определение;;Термин==Определение" по несколько за сообщение.\n',
+                             '1. Для начала введите название вашего набора отдельным сообщением.\n'
+                             '\n'
+                             '2. После этого вводите пары терминов и определений по одной за сообщение в формате "Термин==Определение"'
+                             ' или в формате "Термин==Определение;;Термин==Определение" по несколько за сообщение.\n'
+                             '\n'
+                             'Шаблоны 📄: Т==О  ,  Т==О;;Т==О;;Т==О\n',
                              reply_markup=create_pairs_keyboard)
             user_states[chat_id] = 'waiting_for_pairs'  # Меняем состояние
             current_preset[chat_id] = ''
             preset_name[chat_id] = ''
 
-        elif text == "Инструкция":
+        elif text == "Инструкция 📖":
             instruction_text = """
-Это инструкцию к чат-боту "Ботай-бот".
-Кнопка "Создать пары": вы вводите свои пары "термин-определение", которые вы хотите изучить.
-Кнопка "Изучать" подразделяется на два режима: "блиц" и "подробный".
-Блиц - пользователь по определению должен написать термин по выданному определению.
-Подробный - пользователь по термину должен дать подробное определение.
+Это инструкция 📖 к чат-боту "Ботай-Бот" 🤖.
+
+1. Кнопка "Создать набор пар 📝": Вам нужно ввести пары "термин-определение", которые Вы хотите выучить.
+
+2. Кнопка "Ботать 📚": Вам нужно выбрать один режим из двух: "Блиц ⚡" или "Подробный 🔎".
+
+  О режимах:
+    •  Блиц ⚡ - пользователь должен будет написать термины по данным ему определениям в случайном порядке из указанного набора.
+    
+    •  Подробный 🔎 - пользователь должен будет дать подробные определения на каждый термин в случайном порядке из указанного набора.
                     """
             bot.send_message(chat_id, instruction_text, reply_markup=instruction_keyboard)
             # Состояние остается 'main_menu', если клавиатура инструкции не меняет состояние
 
-        elif text == "Изучать":
-            bot.send_message(chat_id, "Выберите набор пар для изучения:", reply_markup=instruction_keyboard)
+        elif text == "Ботать 📚":
+            bot.send_message(chat_id, "Выберите набор пар для изучения 🤔:", reply_markup=instruction_keyboard)
             user_states[chat_id] = 'preset_choice'
 
             # Получаем пресеты из базы данных
             user_presets = get_user_presets_from_db(chat_id)
 
             if not user_presets:
-                bot.send_message(chat_id, "У вас пока нет сохраненных наборов.")
+                bot.send_message(chat_id, "У Вас пока нет сохраненных наборов. 😟")
                 user_states[chat_id] = 'main_menu'
                 return
 
@@ -345,34 +388,35 @@ def is_button_press(message):
 
             # Показываем список доступных пресетов
             presets_list = "\n".join([f"• {name}" for name in preset_names[chat_id]])
-            bot.send_message(chat_id, f"Ваши наборы:\n{presets_list}\n\nВведите название набора (с учетом регистра):")
-
+            bot.send_message(chat_id, f"Ваши наборы 🗃️:\n{presets_list}\n\nВведите название набора, учитывайте регистр! 😜")
+                    # Вот тут по-хорошему улучшить, сможете сделать кнопки с названиями пресетов, мб позже я попробую
+                    # Ещё было бы славно добавить опцию очистки базы данных пользоваля, как всей, так единично
             choice[chat_id] = ''
 
-        elif text == "Обратно":  # Обработка "Обратно" из главного меню (если бы она там была)
-            # Эта ветка, скорее всего, не выполнится, если "Обратно" есть только в подменю.
+        elif text == "Вернуться назад ↩️":  # Обработка "Обратно" из главного меню (если бы она там была)
+            # Эта ветка, скорее всего, не выполнится, 🤔 если "Обратно" есть только в подменю.
             # Но для полноты:
-            bot.send_message(chat_id, "Вы уже в главном меню.", reply_markup=menu_keyboard)
+            bot.send_message(chat_id, "Вы в главном меню 📋.", reply_markup=menu_keyboard)
 
         else:
             # Если в главном меню ввели что-то непонятное
-            bot.send_message(chat_id, "Неизвестная команда. Пожалуйста, выберите опцию из меню.",
+            bot.send_message(chat_id, "Неизвестная команда. 😰 Пожалуйста, выберите опцию из меню. ⬇️",
                              reply_markup=menu_keyboard)
 
     elif current_state == 'learning_mode_selection':
 
-        if text == "Обратно":
-            bot.send_message(chat_id, "Возвращаемся в главное меню:", reply_markup=menu_keyboard)
+        if text == "Вернуться назад ↩️":
+            bot.send_message(chat_id, "Вы в главном меню 📋.", reply_markup=menu_keyboard)
             user_states[chat_id] = 'main_menu'
             return
 
-        if text == "Блиц":
+        if text == "Блиц ⚡":
             selected_preset_name = choice[chat_id]
             choice_index = preset_names[chat_id].index(selected_preset_name)
             preset_data = presets[chat_id][choice_index]
             blitz_check(preset_data, chat_id, bot)
             user_states[chat_id] = 'learning_in_progress'
-        elif text == "Подробный":
+        elif text == "Подробный 🔎":
             selected_preset_name = choice[chat_id]
             choice_index = preset_names[chat_id].index(selected_preset_name)
             preset_data = presets[chat_id][choice_index]
@@ -380,34 +424,37 @@ def is_button_press(message):
             user_states[chat_id] = 'learning_in_progress'
 
     elif current_state == 'learning_in_progress':
-        if text == "Завершить":
+        if text == "Завершить 🤚":
             if chat_id in learning_sessions:
                 session = learning_sessions.pop(chat_id)
                 correct, total = session['correct'], session['total']
-                if session['mode'] == 'Блиц':
+                if session['mode'] == 'Блиц ⚡':
                     bot.send_message(chat_id,
-                f"Тест прерван\n {correct}/{total} {correct/total*100:.1f}%",
+                f"Тест прерван! ⛔\n {correct}/{total} {correct/total*100:.1f}%",
                     reply_markup=menu_keyboard)
                 else:
                     bot.send_message(chat_id,
-                    f"Тест прерван\n",
+                    f"Тест прерван! ⛔\n",
                     reply_markup=menu_keyboard)
             user_states[chat_id] = 'main_menu'
-        elif text == "Пропустить":
+        elif text == "Пропустить ➡️":
             if chat_id in learning_sessions:
                 session = learning_sessions[chat_id]
                 session['index'] += 1
-                if session['mode'] == 'Блиц':
+                if session['mode'] == 'Блиц ⚡':
                     blitz_check(None, chat_id, bot)
                 else:
                     podrobno_check(None,chat_id, bot)
         else:
 
             if chat_id in learning_sessions:
-                if learning_sessions[chat_id]['mode'] == 'Блиц':
+                if learning_sessions[chat_id]['mode'] == 'Блиц ⚡':
                     blitz_check(None, chat_id, bot, user_answer=text)
                 else:
                     podrobno_check(None, chat_id, bot, user_answer=text)
+
+
+
 if __name__ == '__main__':
-    print("Бот запущен...")
+    print("Бот запущен!!!")
     bot.infinity_polling()
