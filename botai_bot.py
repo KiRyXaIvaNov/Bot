@@ -12,7 +12,7 @@ import psutil
 
 
 # YOUR TOKEN
-token = "8246248813:AAGK82GNL1f-KE_5W-czf2IePnEXwwazQxk"
+token = ""
 
 bot = tb.TeleBot(token)
 
